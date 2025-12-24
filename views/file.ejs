@@ -1,0 +1,47 @@
+<section class="panel">
+  <div
+    style="display: flex; justify-content: space-between; align-items: center"
+  >
+    <div>
+      <h2 style="margin: 0"><%= file.originalName %></h2>
+      <div style="color: var(--muted); margin-top: 6px">
+        <%= (file.size/(1024*1024)).toFixed(2) %> MB • <%= file.chunkCount %>
+        chunks
+      </div>
+    </div>
+    <div style="display: flex; gap: 8px">
+      <% if (file.status === 'uploaded') { %>
+      <a class="btn" href="/files/<%= file._id %>/download">Download</a>
+      <% } %>
+
+      <form
+        action="/files/<%= file._id %>/delete"
+        method="post"
+        onsubmit="return confirm('Delete this file and all its chunks from Discord?');"
+        style="display: inline"
+      >
+        <button class="btn" style="background: #7f1d1d">Delete</button>
+      </form>
+    </div>
+  </div>
+
+  <h3 style="margin-top: 18px">Chunks</h3>
+  <table class="table" aria-hidden="false">
+    <thead>
+      <tr>
+        <td style="color: var(--muted)">Index</td>
+        <td style="color: var(--muted)">Size (KB)</td>
+        <td style="color: var(--muted)">Message ID</td>
+      </tr>
+    </thead>
+    <tbody>
+      <% (file.chunks || []).sort((a,b) => a.index - b.index).forEach(ch => { %>
+      <tr>
+        <td><%= ch.index %></td>
+        <td><%= (ch.size/1024).toFixed(1) %> KB</td>
+        <td><%= ch.messageId || '' %></td>
+      </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</section>

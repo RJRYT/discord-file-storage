@@ -1,0 +1,39 @@
+<section class="panel">
+  <h2 style="margin:0 0 12px 0">Upload file</h2>
+
+  <div class="upload-drop" id="dropArea">
+    <input id="fileInput" type="file" name="file" />
+    <div style="display:flex; align-items:center; justify-content:center; gap:12px; flex-direction:column;">
+      <div id="fileName" style="color:var(--muted); margin-bottom:10px">No file chosen</div>
+      <div style="display:flex; gap:8px;">
+        <button class="btn" id="chooseBtn" type="button">Choose file</button>
+        <button class="btn" id="uploadBtn" type="button">Upload</button>
+      </div>
+    </div>
+
+    <div class="progress-wrap" style="display:none; margin-top:18px;">
+      <div class="progress"><div class="progress-bar" style="width:0%"></div></div>
+      <div class="info-row" style="margin-top:8px;">
+        <div id="progressText">0%</div>
+        <div style="color:var(--muted)">Chunk size: <strong><%= CHUNK_SIZE_MB %> MB</strong></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<aside class="side">
+  <div class="file-card">
+    <h3 style="margin:0 0 8px 0;">Notes</h3>
+    <ul style="color:var(--muted); margin:0; padding-left:18px;">
+      <li>Files are split into <strong><%= CHUNK_SIZE_MB %> MB</strong> chunks on the server.</li>
+      <li>Chunks are uploaded to your private Discord channel (bot required).</li>
+      <li>Download re-fetches message attachments to get fresh CDN links.</li>
+    </ul>
+  </div>
+
+  <div class="file-card">
+    <h4 style="margin:0 0 8px 0;">Quick links</h4>
+    <a class="a-btn" href="/">See files</a>
+    <a class="a-btn" href="/upload" style="margin-left:8px">Upload another</a>
+  </div>
+</aside>

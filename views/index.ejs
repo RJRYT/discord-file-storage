@@ -1,0 +1,45 @@
+<section class="panel" style="width: 100%">
+  <h2 style="margin: 0 0 12px 0">Files</h2>
+
+  <% if (files.length > 0) { %> <% files.forEach(f => { %>
+  <div class="file-card">
+    <div
+      style="display: flex; justify-content: space-between; align-items: center"
+    >
+      <div>
+        <div style="font-weight: 700"><%= f.originalName %></div>
+        <div style="color: var(--muted); font-size: 13px; margin-top: 6px">
+          <%= (f.size/(1024*1024)).toFixed(2) %> MB • <%= f.chunkCount %> chunks
+          • <%= f.status %>
+        </div>
+      </div>
+      <div style="display: flex; gap: 8px; align-items: center">
+        <a class="a-btn" href="/files/<%= f._id %>">View</a>
+        <% if (f.status === 'uploaded') { %>
+        <a
+          class="btn"
+          href="/files/<%= f._id %>/download"
+          style="
+            background: transparent;
+            color: var(--accent);
+            border: 1px solid rgba(255, 255, 255, 0.03);
+          "
+        >
+          Download
+        </a>
+        <% } %>
+        <form
+          action="/files/<%= f._id %>/delete"
+          method="post"
+          onsubmit="return confirm('Delete this file and all its chunks from Discord?');"
+          style="display: inline"
+        >
+          <button class="btn" style="background: #7f1d1d;">Delete</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  <% }) %> <% } else { %>
+  <div style="color: var(--muted)">No files uploaded yet.</div>
+  <% } %>
+</section>

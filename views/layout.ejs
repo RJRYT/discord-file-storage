@@ -1,0 +1,27 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Discord File Store</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1><span class="brand-dot"></span> Discord File Storage</h1>
+      <nav><a href="/" title="Files">Files</a> <a href="/upload" title="Upload">Upload</a></nav>
+    </header>
+
+    <main class="scrollbar-thin">
+      <%- body %>
+    </main>
+
+    <footer>
+      <small>Test project — not for production. Chunk size per file: <strong><%= CHUNK_SIZE_MB %> MB</strong></small>
+    </footer>
+  </div>
+
+  <script src="/main.js" defer></script>
+</body>
+</html>
