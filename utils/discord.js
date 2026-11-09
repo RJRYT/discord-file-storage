@@ -6,9 +6,14 @@ const FormData = require('form-data');
 const DISCORD_API = 'https://discord.com/api/v10';
 const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
 const CHANNEL_ID = process.env.DISCORD_UPLOAD_CHANNEL_ID;
+const GUILD_ID = process.env.DISCORD_GUILD_ID;
 
-if (!BOT_TOKEN || !CHANNEL_ID) {
-  console.warn('WARN: DISCORD_BOT_TOKEN or DISCORD_UPLOAD_CHANNEL_ID not set in .env');
+if (!BOT_TOKEN) {
+  console.warn('WARN: DISCORD_BOT_TOKEN not set in .env');
+}
+
+if (!GUILD_ID) {
+  console.warn('WARN: DISCORD_GUILD_ID not set in .env (required for auto channel creation)');
 }
 
 async function postChunkToChannel(buffer, filename, index, channelId = CHANNEL_ID) {
@@ -120,4 +125,36 @@ async function fetchMessage(channelId, messageId) {
   return resp.data;
 }
 
-module.exports = { postChunkToChannel, deleteChunkFromChannel, fetchMessage };
+async function createChannel(channelName) {
+  if (!GUILD_ID) {
+    throw new Error('No Discord guild ID configured. Set DISCORD_GUILD_ID in .env');
+  }
+
+  const url = `${DISCORD_API}/guilds/${GUILD_ID}/channels`;
+
+  const resp = await axios.post(
+    url,
+    {
+      name: channelName,
+      type: 0, // text channel
+    },
+    {
+      headers: {
+        Authorization: `Bot ${BOT_TOKEN}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      validateStatus: (s) => s < 500,
+    }
+  );
+
+  if (resp.status !== 201) {
+    throw new Error(
+      `Failed to create Discord channel: ${resp.status} ${JSON.stringify(resp.data)}`
+    );
+  }
+
+  return resp.data.id;
+}
+
+module.exports = { postChunkToChannel, deleteChunkFromChannel, fetchMessage, createChannel };

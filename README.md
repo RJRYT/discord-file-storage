@@ -2,11 +2,10 @@ Discord File Storage (test)
 ===========================
 
 Features:
-
 - User login / register with encrypted passwords
-- Per-user Discord channel (each user can set their own default channel)
+- Auto-creates a private Discord channel per user on registration
 - Upload files via EJS UI
-- Split into chunks and upload each chunk to a Discord channel using bot
+- Split into chunks and upload each chunk to your Discord channel using bot
 - Upload status tracking (per-chunk status + overall progress polling)
 - Store metadata in MongoDB
 - On download: re-fetch messages to get fresh CDN URLs, stream chunks in order and stitch
@@ -14,12 +13,12 @@ Features:
 - Security: sessions, CSRF protection, rate limiting, helmet headers, input validation
 
 Setup:
-
 1. Clone
 2. `npm install`
 3. Create `.env` with:
    - DISCORD_BOT_TOKEN
-   - DISCORD_UPLOAD_CHANNEL_ID
+   - DISCORD_GUILD_ID (your Discord server ID, for auto channel creation)
+   - DISCORD_UPLOAD_CHANNEL_ID (optional fallback channel)
    - MONGO_URI
    - SESSION_SECRET (change in production)
 4. Start: `npm start`

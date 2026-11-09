@@ -8,29 +8,28 @@
   </head>
   <body>
     <div class="container">
-      <header class="site-header">
+      <header class="site-header auth-header-simple">
         <div class="header-inner">
+          <% var active = typeof active !== 'undefined' ? active : '' %> <% var message = typeof
+          message !== 'undefined' ? message : null %> <% var error = typeof error !== 'undefined' ?
+          error : null %> <% var CHUNK_SIZE_MB = typeof CHUNK_SIZE_MB !== 'undefined' ?
+          CHUNK_SIZE_MB : '' %> <% var isAuth = typeof isAuthPage !== 'undefined' && isAuthPage %>
+          <% if (isAuth) { %>
+          <a href="/" class="brand"><span class="brand-dot"></span> Discord File Storage</a>
+          <a href="/auth/login" class="btn btn-outline">Back to Login</a>
+          <% } else { %>
           <h1 class="brand"><span class="brand-dot"></span> Discord File Storage</h1>
           <button class="nav-toggle" aria-label="Toggle menu">&#9776;</button>
           <nav class="main-nav">
-            <% var active = typeof active !== 'undefined' ? active : '' %>
-            <% var message = typeof message !== 'undefined' ? message : null %>
-            <% var error = typeof error !== 'undefined' ? error : null %>
-            <% var CHUNK_SIZE_MB = typeof CHUNK_SIZE_MB !== 'undefined' ? CHUNK_SIZE_MB : '' %>
             <% if (user) { %>
-            <a href="/" title="Files" class="<%= (active === 'files') ? 'active' : '' %>"
-              >Files</a
-            >
+            <a href="/" title="Files" class="<%= (active === 'files') ? 'active' : '' %>">Files</a>
             <a
               href="/files/upload"
               title="Upload"
               class="<%= (active === 'upload') ? 'active' : '' %>"
               >Upload</a
             >
-            <a
-              href="/profile"
-              title="Profile"
-              class="<%= (active === 'profile') ? 'active' : '' %>"
+            <a href="/profile" title="Profile" class="<%= (active === 'profile') ? 'active' : '' %>"
               >Profile</a
             >
             <form action="/auth/logout" method="post" style="display: inline; margin: 0">
@@ -38,10 +37,7 @@
               <button class="btn btn-outline" type="submit">Logout</button>
             </form>
             <% } else { %>
-            <a
-              href="/auth/login"
-              title="Login"
-              class="<%= (active === 'login') ? 'active' : '' %>"
+            <a href="/auth/login" title="Login" class="<%= (active === 'login') ? 'active' : '' %>"
               >Login</a
             >
             <a href="/auth/register" title="Register" class="btn btn-primary">Register</a>
@@ -49,8 +45,7 @@
           </nav>
         </div>
       </header>
-
-      <% if (message) { %>
+      <% } %> <% if (message) { %>
       <div class="alert alert-success"><%= message %></div>
       <% } %> <% if (error) { %>
       <div class="alert alert-error"><%= error %></div>

@@ -4,12 +4,18 @@ const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
 const { requireGuest, requireAuth, loadUser } = require('../middleware/auth');
 const { generateCsrfToken } = require('../middleware/csrf');
+const { createChannel } = require('../utils/discord');
 
 router.use(loadUser);
 
 // GET /register
 router.get('/register', requireGuest, (req, res) => {
-  res.render('register', { csrfToken: generateCsrfToken(req), error: null, form: null });
+  res.render('register', {
+    csrfToken: generateCsrfToken(req),
+    error: null,
+    form: null,
+    isAuthPage: true,
+  });
 });
 
 // POST /register
@@ -25,11 +31,6 @@ router.post(
       .withMessage('Username must be alphanumeric'),
     body('email').trim().isEmail().normalizeEmail().withMessage('Enter a valid email'),
     body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
-    body('discordChannelId')
-      .optional()
-      .trim()
-      .isLength({ min: 1, max: 30 })
-      .withMessage('Discord channel ID must be 1-30 characters'),
   ],
   async (req, res) => {
     const errors = validationResult(req);
@@ -38,10 +39,11 @@ router.post(
         csrfToken: generateCsrfToken(req),
         error: errors.array()[0].msg,
         form: req.body,
+        isAuthPage: true,
       });
     }
 
-    const { username, email, password, discordChannelId } = req.body;
+    const { username, email, password } = req.body;
 
     try {
       const existing = await User.findOne({
@@ -52,14 +54,24 @@ router.post(
           csrfToken: generateCsrfToken(req),
           error: 'Username or email already registered',
           form: req.body,
+          isAuthPage: true,
         });
+      }
+
+      // Create a private Discord channel for this user
+      let discordChannelId = '';
+      try {
+        discordChannelId = await createChannel(`user-${username}`);
+      } catch (chErr) {
+        console.error('Discord channel creation failed', chErr.message);
+        // Continue without channel — user can still register
       }
 
       const user = await User.create({
         username,
         email,
         password,
-        discordChannelId: discordChannelId || '',
+        discordChannelId,
       });
 
       req.session.userId = user._id;
@@ -71,6 +83,7 @@ router.post(
         csrfToken: generateCsrfToken(req),
         error: 'Registration failed. Try again.',
         form: req.body,
+        isAuthPage: true,
       });
     }
   }
@@ -78,7 +91,12 @@ router.post(
 
 // GET /login
 router.get('/login', requireGuest, (req, res) => {
-  res.render('login', { csrfToken: generateCsrfToken(req), error: null, form: null });
+  res.render('login', {
+    csrfToken: generateCsrfToken(req),
+    error: null,
+    form: null,
+    isAuthPage: true,
+  });
 });
 
 // POST /login

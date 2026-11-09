@@ -37,248 +37,209 @@ router.get('/', requireAuth, async (req, res) => {
 
 // GET /files/upload - upload form
 router.get('/upload', requireAuth, (req, res) => {
-  const channelId = req.user?.discordChannelId || process.env.DISCORD_UPLOAD_CHANNEL_ID || '';
   res.render('upload', {
     user: req.user,
-    channelId,
     csrfToken: generateCsrfToken(req),
     error: null,
   });
 });
 
 // POST /files/upload - handle upload
-router.post(
-  '/upload',
-  requireAuth,
-  csrfMiddleware,
-  upload.single('file'),
-  [
-    body('channelId')
-      .optional()
-      .trim()
-      .isLength({ min: 1, max: 30 })
-      .withMessage('Invalid channel ID'),
-  ],
-  async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      if (req.file) {
-        try {
-          fs.unlinkSync(req.file.path);
-        } catch (e) {}
-      }
-      if (req.xhr || req.headers.accept?.includes('application/json')) {
-        return res.status(400).json({ ok: false, error: errors.array()[0].msg });
-      }
-      return res.render('upload', {
-        user: req.user,
-        channelId: req.body.channelId || '',
-        csrfToken: generateCsrfToken(req),
-        error: errors.array()[0].msg,
-      });
+router.post('/upload', requireAuth, csrfMiddleware, upload.single('file'), async (req, res) => {
+  if (!req.file) {
+    if (req.xhr || req.headers.accept?.includes('application/json')) {
+      return res.status(400).json({ ok: false, error: 'No file uploaded' });
     }
+    return res.render('upload', {
+      user: req.user,
+      csrfToken: generateCsrfToken(req),
+      error: 'No file uploaded',
+    });
+  }
 
-    if (!req.file) {
-      if (req.xhr || req.headers.accept?.includes('application/json')) {
-        return res.status(400).json({ ok: false, error: 'No file uploaded' });
-      }
-      return res.render('upload', {
-        user: req.user,
-        channelId: req.body.channelId || '',
-        csrfToken: generateCsrfToken(req),
-        error: 'No file uploaded',
-      });
+  const tmpPath = req.file.path;
+  const originalName = req.file.originalname;
+  const size = req.file.size;
+  const mimeType = req.file.mimetype;
+
+  // file size limit
+  if (size > MAX_FILE_SIZE) {
+    try {
+      fs.unlinkSync(tmpPath);
+    } catch (e) {}
+    const msg = `File too large. Max size is ${(MAX_FILE_SIZE / (1024 * 1024 * 1024)).toFixed(2)} GB.`;
+    if (req.xhr || req.headers.accept?.includes('application/json')) {
+      return res.status(400).json({ ok: false, error: msg });
     }
+    return res.render('upload', {
+      user: req.user,
+      channelId: req.body.channelId || '',
+      csrfToken: generateCsrfToken(req),
+      error: msg,
+    });
+  }
 
-    const tmpPath = req.file.path;
-    const originalName = req.file.originalname;
-    const size = req.file.size;
-    const mimeType = req.file.mimetype;
-
-    // file size limit
-    if (size > MAX_FILE_SIZE) {
-      try {
-        fs.unlinkSync(tmpPath);
-      } catch (e) {}
-      const msg = `File too large. Max size is ${(MAX_FILE_SIZE / (1024 * 1024 * 1024)).toFixed(2)} GB.`;
-      if (req.xhr || req.headers.accept?.includes('application/json')) {
-        return res.status(400).json({ ok: false, error: msg });
-      }
-      return res.render('upload', {
-        user: req.user,
-        channelId: req.body.channelId || '',
-        csrfToken: generateCsrfToken(req),
-        error: msg,
-      });
+  // use user's auto-created Discord channel
+  const channelId = req.user?.discordChannelId || process.env.DISCORD_UPLOAD_CHANNEL_ID || '';
+  if (!channelId) {
+    try {
+      fs.unlinkSync(tmpPath);
+    } catch (e) {}
+    const msg = 'No Discord channel configured. Please contact support.';
+    if (req.xhr || req.headers.accept?.includes('application/json')) {
+      return res.status(400).json({ ok: false, error: msg });
     }
+    return res.render('upload', {
+      user: req.user,
+      csrfToken: generateCsrfToken(req),
+      error: msg,
+    });
+  }
 
-    // determine channel: per-user setting overrides form/global
-    const channelId =
-      req.body.channelId ||
-      req.user?.discordChannelId ||
-      process.env.DISCORD_UPLOAD_CHANNEL_ID ||
-      '';
-    if (!channelId) {
-      try {
-        fs.unlinkSync(tmpPath);
-      } catch (e) {}
-      const msg = 'No Discord channel configured. Set one in your profile or provide it on upload.';
-      if (req.xhr || req.headers.accept?.includes('application/json')) {
-        return res.status(400).json({ ok: false, error: msg });
-      }
-      return res.render('upload', {
-        user: req.user,
-        channelId: '',
-        csrfToken: generateCsrfToken(req),
-        error: msg,
-      });
-    }
+  const chunkCount = Math.ceil(size / CHUNK_SIZE);
 
-    const chunkCount = Math.ceil(size / CHUNK_SIZE);
+  const fileDoc = await FileModel.create({
+    originalName,
+    size,
+    mimeType,
+    chunkSize: CHUNK_SIZE,
+    chunkCount,
+    chunks: [],
+    status: 'queued',
+    uploadStatus: 'queued',
+    uploadedChunks: 0,
+    userId: req.session.userId,
+    channelId,
+  });
 
-    const fileDoc = await FileModel.create({
-      originalName,
+  const uploadTimer = logger.startTimer();
+  logger.upload(
+    'File upload started',
+    {
+      filename: originalName,
       size,
       mimeType,
-      chunkSize: CHUNK_SIZE,
       chunkCount,
-      chunks: [],
-      status: 'queued',
-      uploadStatus: 'queued',
-      uploadedChunks: 0,
-      userId: req.session.userId,
       channelId,
-    });
+      userId: req.session.userId,
+    },
+    req.requestId
+  );
 
-    const uploadTimer = logger.startTimer();
-    logger.upload(
-      'File upload started',
-      {
-        filename: originalName,
-        size,
-        mimeType,
-        chunkCount,
-        channelId,
-        userId: req.session.userId,
-      },
-      req.requestId
-    );
+  try {
+    await produceChunks(tmpPath, CHUNK_SIZE, async (buffer, index) => {
+      const chunkHash = sha256(buffer);
+      const chunkFilename = `${fileDoc._id}_chunk_${index}`;
 
-    try {
-      await produceChunks(tmpPath, CHUNK_SIZE, async (buffer, index) => {
-        const chunkHash = sha256(buffer);
-        const chunkFilename = `${fileDoc._id}_chunk_${index}`;
+      logger.discord(
+        'Uploading chunk to Discord',
+        {
+          fileId: fileDoc._id,
+          index,
+          userId: req.session.userId,
+        },
+        req.requestId
+      );
 
-        logger.discord(
-          'Uploading chunk to Discord',
-          {
-            fileId: fileDoc._id,
-            index,
-            userId: req.session.userId,
-          },
-          req.requestId
-        );
-
-        let message;
-        try {
-          message = await postChunkToChannel(buffer, chunkFilename, index, channelId);
-        } catch (err) {
-          // mark chunk failed
-          await FileModel.findByIdAndUpdate(fileDoc._id, {
-            $push: {
-              chunks: {
-                index,
-                size: buffer.length,
-                channelId,
-                messageId: '',
-                attachmentId: '',
-                sha256: chunkHash,
-                uploadedAt: new Date(),
-                status: 'failed',
-              },
-            },
-          });
-          throw err;
-        }
-
-        const attachment =
-          message.attachments && message.attachments[0] ? message.attachments[0] : null;
-
+      let message;
+      try {
+        message = await postChunkToChannel(buffer, chunkFilename, index, channelId);
+      } catch (err) {
+        // mark chunk failed
         await FileModel.findByIdAndUpdate(fileDoc._id, {
           $push: {
             chunks: {
               index,
               size: buffer.length,
-              channelId: message.channel_id || channelId,
-              messageId: message.id,
-              attachmentId: attachment?.id,
+              channelId,
+              messageId: '',
+              attachmentId: '',
               sha256: chunkHash,
               uploadedAt: new Date(),
-              status: 'uploaded',
+              status: 'failed',
             },
           },
-          $inc: { uploadedChunks: 1 },
-          $set: { uploadStatus: 'uploading', status: 'uploading' },
         });
-
-        // gentle pause between uploads
-        await new Promise((r) => setTimeout(r, 250));
-      });
-
-      // mark complete
-      await FileModel.findByIdAndUpdate(fileDoc._id, {
-        status: 'completed',
-        uploadStatus: 'completed',
-      });
-      logger.upload(
-        'File upload completed',
-        {
-          fileId: fileDoc._id,
-          originalName,
-          totalChunks: chunkCount,
-          totalTime: `${logger.endTimerMs(uploadTimer)} ms`,
-          userId: req.session.userId,
-        },
-        req.requestId
-      );
-
-      // delete tmp
-      fs.unlink(tmpPath, () => {});
-
-      if (req.xhr || req.headers.accept?.includes('application/json')) {
-        return res.json({ ok: true, fileId: fileDoc._id });
+        throw err;
       }
-      return res.redirect(`/files/${fileDoc._id}`);
-    } catch (err) {
-      console.error('Upload failed', err);
+
+      const attachment =
+        message.attachments && message.attachments[0] ? message.attachments[0] : null;
+
       await FileModel.findByIdAndUpdate(fileDoc._id, {
-        status: 'failed',
-        uploadStatus: 'failed',
-      });
-      try {
-        fs.unlinkSync(tmpPath);
-      } catch (e) {}
-      logger.error(
-        'File upload failed',
-        {
-          fileId: fileDoc._id,
-          error: err.message,
-          userId: req.session.userId,
+        $push: {
+          chunks: {
+            index,
+            size: buffer.length,
+            channelId: message.channel_id || channelId,
+            messageId: message.id,
+            attachmentId: attachment?.id,
+            sha256: chunkHash,
+            uploadedAt: new Date(),
+            status: 'uploaded',
+          },
         },
-        req.requestId
-      );
-      if (req.xhr || req.headers.accept?.includes('application/json')) {
-        return res.status(500).json({ ok: false, error: err.message });
-      }
-      return res.status(500).render('upload', {
-        user: req.user,
-        channelId,
-        csrfToken: generateCsrfToken(req),
-        error: 'Upload failed: ' + err.message,
+        $inc: { uploadedChunks: 1 },
+        $set: { uploadStatus: 'uploading', status: 'uploading' },
       });
+
+      // gentle pause between uploads
+      await new Promise((r) => setTimeout(r, 250));
+    });
+
+    // mark complete
+    await FileModel.findByIdAndUpdate(fileDoc._id, {
+      status: 'completed',
+      uploadStatus: 'completed',
+    });
+    logger.upload(
+      'File upload completed',
+      {
+        fileId: fileDoc._id,
+        originalName,
+        totalChunks: chunkCount,
+        totalTime: `${logger.endTimerMs(uploadTimer)} ms`,
+        userId: req.session.userId,
+      },
+      req.requestId
+    );
+
+    // delete tmp
+    fs.unlink(tmpPath, () => {});
+
+    if (req.xhr || req.headers.accept?.includes('application/json')) {
+      return res.json({ ok: true, fileId: fileDoc._id });
     }
+    return res.redirect(`/files/${fileDoc._id}`);
+  } catch (err) {
+    console.error('Upload failed', err);
+    await FileModel.findByIdAndUpdate(fileDoc._id, {
+      status: 'failed',
+      uploadStatus: 'failed',
+    });
+    try {
+      fs.unlinkSync(tmpPath);
+    } catch (e) {}
+    logger.error(
+      'File upload failed',
+      {
+        fileId: fileDoc._id,
+        error: err.message,
+        userId: req.session.userId,
+      },
+      req.requestId
+    );
+    if (req.xhr || req.headers.accept?.includes('application/json')) {
+      return res.status(500).json({ ok: false, error: err.message });
+    }
+    return res.status(500).render('upload', {
+      user: req.user,
+      channelId,
+      csrfToken: generateCsrfToken(req),
+      error: 'Upload failed: ' + err.message,
+    });
   }
-);
+});
 
 // GET /files/:id - file detail
 router.get('/:id', requireAuth, async (req, res) => {

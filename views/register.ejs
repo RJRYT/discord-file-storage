@@ -54,21 +54,6 @@
       <p class="hint">Must be at least 6 characters.</p>
     </div>
 
-    <div class="field">
-      <label for="discordChannelId">Discord Channel ID (optional)</label>
-      <input
-        type="text"
-        id="discordChannelId"
-        name="discordChannelId"
-        placeholder="123456789012345678"
-        value="<%= (form && form.discordChannelId) || '' %>"
-      />
-      <p class="hint">
-        Your private Discord channel where file chunks will be stored. Leave blank to use the global
-        default.
-      </p>
-    </div>
-
     <button class="btn btn-primary" type="submit">Create account</button>
   </form>
 

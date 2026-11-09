@@ -8,18 +8,6 @@
   <form id="uploadForm" action="/files/upload" method="post" enctype="multipart/form-data">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
 
-    <div class="field">
-      <label for="channelId">Discord Channel ID</label>
-      <input
-        type="text"
-        id="channelId"
-        name="channelId"
-        placeholder="123456789012345678"
-        value="<%= channelId %>"
-      />
-      <p class="hint">Leave blank to use your default channel from profile.</p>
-    </div>
-
     <div class="upload-drop" id="dropArea">
       <input id="fileInput" type="file" name="file" required />
       <div
