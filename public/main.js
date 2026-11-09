@@ -3,9 +3,26 @@ document.addEventListener('DOMContentLoaded', () => {
   // Mobile nav toggle
   const navToggle = document.querySelector('.nav-toggle');
   const mainNav = document.querySelector('.main-nav');
+  const navLinks = document.querySelectorAll('.main-nav a, .main-nav button');
+
   if (navToggle && mainNav) {
-    navToggle.addEventListener('click', () => {
+    navToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
       mainNav.classList.toggle('open');
+    });
+
+    // Close nav when clicking a link
+    navLinks.forEach((link) => {
+      link.addEventListener('click', () => {
+        mainNav.classList.remove('open');
+      });
+    });
+
+    // Close nav when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!navToggle.contains(e.target) && !mainNav.contains(e.target)) {
+        mainNav.classList.remove('open');
+      }
     });
   }
 
