@@ -1,109 +1,140 @@
 // public/main.js
-document.addEventListener("DOMContentLoaded", () => {
-  const fileInput = document.getElementById("fileInput");
-  const chooseBtn = document.getElementById("chooseBtn");
-  const uploadBtn = document.getElementById("uploadBtn");
-  const progressBar = document.querySelector(".progress-bar");
-  const progressWrap = document.querySelector(".progress-wrap");
-  const progressText = document.getElementById("progressText");
-  const dropArea = document.querySelector(".upload-drop");
-
-  let currentFile = null;
-
-  function setProgress(p) {
-    progressBar.style.width = `${p}%`;
-    progressText.textContent = `${p.toFixed(0)}%`;
+document.addEventListener('DOMContentLoaded', () => {
+  // Mobile nav toggle
+  const navToggle = document.querySelector('.nav-toggle');
+  const mainNav = document.querySelector('.main-nav');
+  if (navToggle && mainNav) {
+    navToggle.addEventListener('click', () => {
+      mainNav.classList.toggle('open');
+    });
   }
 
-  chooseBtn?.addEventListener("click", () => fileInput.click());
-  fileInput?.addEventListener("change", (e) => {
+  const fileInput = document.getElementById('fileInput');
+  const chooseBtn = document.getElementById('chooseBtn');
+  const uploadBtn = document.getElementById('uploadBtn');
+  const progressBar = document.querySelector('.progress-bar');
+  const progressWrap = document.querySelector('.progress-wrap');
+  const progressText = document.getElementById('progressText');
+  const statusText = document.getElementById('statusText');
+  const chunkStatus = document.getElementById('chunkStatus');
+  const chunkList = document.getElementById('chunkList');
+  const dropArea = document.querySelector('.upload-drop');
+
+  let currentFile = null;
+  let fileId = null;
+  let pollTimer = null;
+
+  function setProgress(p) {
+    if (!progressBar) return;
+    progressBar.style.width = p + '%';
+    if (progressText) progressText.textContent = p.toFixed(0) + '%';
+  }
+
+  function renderFileName(file) {
+    const el = document.getElementById('fileName');
+    if (!file) {
+      el.textContent = 'No file chosen';
+    } else {
+      el.textContent = file.name + ' • ' + (file.size / (1024 * 1024)).toFixed(2) + ' MB';
+    }
+  }
+
+  chooseBtn?.addEventListener('click', () => fileInput.click());
+  fileInput?.addEventListener('change', (e) => {
     currentFile = e.target.files[0];
     renderFileName(currentFile);
   });
 
   // drag & drop
   if (dropArea) {
-    ["dragenter", "dragover"].forEach((ev) => {
+    ['dragenter', 'dragover'].forEach((ev) => {
       dropArea.addEventListener(ev, (e) => {
         e.preventDefault();
         e.stopPropagation();
-        dropArea.classList.add("dragover");
+        dropArea.classList.add('dragover');
       });
     });
-    ["dragleave", "drop"].forEach((ev) => {
+    ['dragleave', 'drop'].forEach((ev) => {
       dropArea.addEventListener(ev, (e) => {
         e.preventDefault();
         e.stopPropagation();
-        dropArea.classList.remove("dragover");
+        dropArea.classList.remove('dragover');
       });
     });
-    dropArea.addEventListener("drop", (e) => {
+    dropArea.addEventListener('drop', (e) => {
       const f = e.dataTransfer.files && e.dataTransfer.files[0];
       if (f) {
         currentFile = f;
-        fileInput.files = e.dataTransfer.files; // keep input in sync
         renderFileName(currentFile);
       }
     });
   }
 
-  function renderFileName(file) {
-    const el = document.getElementById("fileName");
-    if (!file) {
-      el.textContent = "No file chosen";
-    } else {
-      el.textContent = `${file.name} • ${(file.size / (1024 * 1024)).toFixed(
-        2
-      )} MB`;
-    }
+  const form = document.getElementById('uploadForm');
+  if (form) {
+    form.addEventListener('submit', (e) => {
+      if (!currentFile) {
+        e.preventDefault();
+        alert('Choose a file first');
+        return;
+      }
+      if (uploadBtn) {
+        uploadBtn.disabled = true;
+        uploadBtn.textContent = 'Uploading...';
+      }
+      progressWrap.style.display = 'block';
+      setProgress(2);
+      if (statusText) statusText.textContent = 'Uploading file to server...';
+      // Let the form submit normally (server returns JSON for XHR or redirect)
+    });
   }
 
-  uploadBtn?.addEventListener("click", () => {
-    if (!currentFile) return alert("Choose a file first");
-    startUpload(currentFile);
-  });
+  // Upload status polling (for file detail page)
+  const statusPollEl = document.getElementById('uploadStatusPoll');
+  if (statusPollEl && fileId) {
+    startStatusPolling(fileId);
+  }
 
-  function startUpload(file) {
-    const xhr = new XMLHttpRequest();
-    const url = "/upload";
-    const fd = new FormData();
-    fd.append("file", file);
+  function startStatusPolling(id) {
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(async () => {
+      try {
+        const resp = await fetch('/files/' + id + '/status', {
+          headers: { Accept: 'application/json' },
+        });
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (!data.ok) return;
 
-    xhr.upload.addEventListener("progress", (e) => {
-      if (e.lengthComputable) {
-        const percent = (e.loaded / e.total) * 100;
-        setProgress(percent);
-      }
-    });
+        const pct = data.progressPercent || 0;
+        setProgress(pct);
+        if (statusText)
+          statusText.textContent =
+            'Uploaded ' + data.uploadedChunks + '/' + data.totalChunks + ' chunks';
 
-    xhr.onreadystatechange = () => {
-      if (xhr.readyState === 4) {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          try {
-            const data = JSON.parse(xhr.responseText);
-            if (data && data.ok && data.fileId) {
-              // succesful upload - redirect to file page
-              window.location.href = `/files/${data.fileId}`;
-            } else {
-              console.warn("Unexpected response", data);
-              window.location.href = "/";
-            }
-          } catch (err) {
-            // fallback: if server returned redirect HTML, just go home
-            window.location.href = "/";
-          }
-        } else {
-          alert("Upload failed: " + (xhr.responseText || xhr.statusText));
+        if (chunkList && data.chunks) {
+          chunkList.innerHTML = data.chunks
+            .map(
+              (c) =>
+                "<div style='font-size:12px;color:var(--muted);margin:4px 0;'><span style='color:var(--accent)'>Chunk " +
+                c.index +
+                '</span>: ' +
+                c.status +
+                '</div>'
+            )
+            .join('');
+          chunkStatus.style.display = 'block';
         }
+
+        if (data.uploadStatus === 'completed' || data.uploadStatus === 'failed') {
+          clearInterval(pollTimer);
+          if (statusText)
+            statusText.textContent =
+              data.uploadStatus === 'completed' ? 'Upload completed!' : 'Upload failed.';
+        }
+      } catch (err) {
+        // ignore poll errors
       }
-    };
-
-    // show progress UI
-    progressWrap.style.display = "block";
-    setProgress(2);
-
-    xhr.open("POST", url, true);
-    xhr.setRequestHeader("Accept", "application/json"); // help server respond with JSON
-    xhr.send(fd);
+    }, 2000);
   }
 });

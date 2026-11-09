@@ -1,0 +1,58 @@
+<section class="panel auth-panel">
+  <h2 style="margin: 0 0 16px 0">Register</h2>
+
+  <form action="/auth/register" method="post">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+
+    <div class="field">
+      <label for="username">Username</label>
+      <input
+        type="text"
+        id="username"
+        name="username"
+        placeholder="alice"
+        maxlength="30"
+        value="<%= (form && form.username) ? form.username : '' %>"
+        required
+      />
+    </div>
+
+    <div class="field">
+      <label for="email">Email</label>
+      <input
+        type="email"
+        id="email"
+        name="email"
+        placeholder="you@example.com"
+        value="<%= (form && form.email) ? form.email : '' %>"
+        required
+      />
+    </div>
+
+    <div class="field">
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" placeholder="••••••••" required />
+    </div>
+
+    <div class="field">
+      <label for="discordChannelId">Discord Channel ID (optional)</label>
+      <input
+        type="text"
+        id="discordChannelId"
+        name="discordChannelId"
+        placeholder="123456789012345678"
+        value="<%= (form && form.discordChannelId) ? form.discordChannelId : '' %>"
+      />
+      <p class="hint">
+        Your private Discord channel where file chunks will be stored. Leave blank to use the global
+        default.
+      </p>
+    </div>
+
+    <button class="btn btn-primary" type="submit">Create account</button>
+  </form>
+
+  <p style="margin-top: 12px; color: var(--muted); font-size: 14px">
+    Already have an account? <a href="/auth/login">Login</a>
+  </p>
+</section>

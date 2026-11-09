@@ -1,9 +1,9 @@
 // utils/chunker.js
-const fs = require("fs");
-const crypto = require("crypto");
+const fs = require('fs');
+const crypto = require('crypto');
 
 function sha256(buffer) {
-  return crypto.createHash("sha256").update(buffer).digest("hex");
+  return crypto.createHash('sha256').update(buffer).digest('hex');
 }
 
 /**
@@ -19,7 +19,7 @@ async function produceChunks(filePath, chunkSize, onChunk) {
     let bufferLen = 0;
     let index = 0;
 
-    read.on("data", async (chunk) => {
+    read.on('data', async (chunk) => {
       read.pause(); // process sync-ish to avoid memory spikes
       bufferParts.push(chunk);
       bufferLen += chunk.length;
@@ -53,7 +53,7 @@ async function produceChunks(filePath, chunkSize, onChunk) {
       read.resume();
     });
 
-    read.on("end", async () => {
+    read.on('end', async () => {
       // leftover
       if (bufferLen > 0) {
         const outBuf = Buffer.concat(bufferParts, bufferLen);
@@ -66,7 +66,7 @@ async function produceChunks(filePath, chunkSize, onChunk) {
       resolve();
     });
 
-    read.on("error", (err) => reject(err));
+    read.on('error', (err) => reject(err));
   });
 }
 

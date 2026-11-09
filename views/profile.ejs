@@ -1,0 +1,48 @@
+<section class="panel">
+  <div class="panel-header">
+    <h2 style="margin: 0">Profile</h2>
+  </div>
+
+  <% if (error) { %>
+  <div class="alert alert-error"><%= error %></div>
+  <% } %> <% if (success) { %>
+  <div class="alert alert-success"><%= success %></div>
+  <% } %>
+
+  <form action="/files/profile" method="post">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+
+    <div class="field">
+      <label for="username">Username</label>
+      <input type="text" id="username" name="username" value="<%= user.username %>" disabled />
+      <p class="hint">Username cannot be changed after registration.</p>
+    </div>
+
+    <div class="field">
+      <label for="email">Email</label>
+      <input type="email" id="email" name="email" value="<%= user.email %>" disabled />
+      <p class="hint">Email cannot be changed after registration.</p>
+    </div>
+
+    <div class="field">
+      <label for="discordChannelId">Default Discord Channel ID</label>
+      <input
+        type="text"
+        id="discordChannelId"
+        name="discordChannelId"
+        placeholder="123456789012345678"
+        value="<%= user.discordChannelId || '' %>"
+      />
+      <p class="hint">
+        Files uploaded without a channel ID will use this channel. Find it in your Discord channel
+        settings (Developer Mode → Copy ID).
+      </p>
+    </div>
+
+    <button class="btn btn-primary" type="submit">Save Channel</button>
+  </form>
+
+  <p style="margin-top: 16px; color: var(--muted); font-size: 14px">
+    Member since: <%= new Date(user.createdAt).toLocaleDateString() %>
+  </p>
+</section>

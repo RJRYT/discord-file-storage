@@ -1,39 +1,154 @@
 <section class="panel">
-  <h2 style="margin:0 0 12px 0">Upload file</h2>
+  <h2 style="margin: 0 0 12px 0">Upload file</h2>
 
-  <div class="upload-drop" id="dropArea">
-    <input id="fileInput" type="file" name="file" />
-    <div style="display:flex; align-items:center; justify-content:center; gap:12px; flex-direction:column;">
-      <div id="fileName" style="color:var(--muted); margin-bottom:10px">No file chosen</div>
-      <div style="display:flex; gap:8px;">
-        <button class="btn" id="chooseBtn" type="button">Choose file</button>
-        <button class="btn" id="uploadBtn" type="button">Upload</button>
-      </div>
+  <% if (error) { %>
+  <div class="alert alert-error"><%= error %></div>
+  <% } %>
+
+  <form id="uploadForm" action="/files/upload" method="post" enctype="multipart/form-data">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+
+    <div class="field">
+      <label for="channelId">Discord Channel ID</label>
+      <input
+        type="text"
+        id="channelId"
+        name="channelId"
+        placeholder="123456789012345678"
+        value="<%= channelId %>"
+      />
+      <p class="hint">Leave blank to use your default channel from profile.</p>
     </div>
 
-    <div class="progress-wrap" style="display:none; margin-top:18px;">
-      <div class="progress"><div class="progress-bar" style="width:0%"></div></div>
-      <div class="info-row" style="margin-top:8px;">
-        <div id="progressText">0%</div>
-        <div style="color:var(--muted)">Chunk size: <strong><%= CHUNK_SIZE_MB %> MB</strong></div>
+    <div class="upload-drop" id="dropArea">
+      <input id="fileInput" type="file" name="file" required />
+      <div
+        style="
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 12px;
+          flex-direction: column;
+        "
+      >
+        <div id="fileName" style="color: var(--muted); margin-bottom: 10px">No file chosen</div>
+        <div style="display: flex; gap: 8px">
+          <button class="btn" id="chooseBtn" type="button">Choose file</button>
+          <button class="btn btn-primary" id="uploadBtn" type="submit">Upload</button>
+        </div>
+      </div>
+
+      <div class="progress-wrap" style="display: none; margin-top: 18px">
+        <div class="progress"><div class="progress-bar" style="width: 0%"></div></div>
+        <div class="info-row" style="margin-top: 8px">
+          <div id="progressText">0%</div>
+          <div id="statusText" style="color: var(--muted); font-size: 13px">
+            Preparing upload...
+          </div>
+          <div style="color: var(--muted)">
+            Chunk size: <strong><%= CHUNK_SIZE_MB %> MB</strong>
+          </div>
+        </div>
       </div>
     </div>
-  </div>
+  </form>
 </section>
 
 <aside class="side">
   <div class="file-card">
-    <h3 style="margin:0 0 8px 0;">Notes</h3>
-    <ul style="color:var(--muted); margin:0; padding-left:18px;">
+    <h3 style="margin: 0 0 8px 0">Notes</h3>
+    <ul style="color: var(--muted); margin: 0; padding-left: 18px">
       <li>Files are split into <strong><%= CHUNK_SIZE_MB %> MB</strong> chunks on the server.</li>
-      <li>Chunks are uploaded to your private Discord channel (bot required).</li>
+      <li>Each chunk is uploaded to your Discord channel as a message attachment.</li>
+      <li>Upload status is tracked per chunk and shown below during transfer.</li>
       <li>Download re-fetches message attachments to get fresh CDN links.</li>
     </ul>
   </div>
 
   <div class="file-card">
-    <h4 style="margin:0 0 8px 0;">Quick links</h4>
+    <h4 style="margin: 0 0 8px 0">Quick links</h4>
     <a class="a-btn" href="/">See files</a>
-    <a class="a-btn" href="/upload" style="margin-left:8px">Upload another</a>
+    <a class="a-btn" href="/files/upload" style="margin-left: 8px">Upload another</a>
   </div>
 </aside>
+
+<div id="chunkStatus" style="display: none; margin-top: 20px" class="panel">
+  <h3 style="margin: 0 0 8px 0">Chunk Upload Progress</h3>
+  <div id="chunkList"></div>
+</div>
+
+<script>
+  (function () {
+    const form = document.getElementById('uploadForm');
+    const fileInput = document.getElementById('fileInput');
+    const chooseBtn = document.getElementById('chooseBtn');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const progressBar = document.querySelector('.progress-bar');
+    const progressWrap = document.querySelector('.progress-wrap');
+    const progressText = document.getElementById('progressText');
+    const statusText = document.getElementById('statusText');
+    const chunkStatus = document.getElementById('chunkStatus');
+    const chunkList = document.getElementById('chunkList');
+    const dropArea = document.querySelector('.upload-drop');
+
+    let currentFile = null;
+    let fileId = null;
+
+    function setProgress(p) {
+      progressBar.style.width = p + '%';
+      progressText.textContent = p.toFixed(0) + '%';
+    }
+
+    chooseBtn?.addEventListener('click', () => fileInput.click());
+    fileInput?.addEventListener('change', (e) => {
+      currentFile = e.target.files[0];
+      renderFileName(currentFile);
+    });
+
+    if (dropArea) {
+      ['dragenter', 'dragover'].forEach((ev) => {
+        dropArea.addEventListener(ev, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dropArea.classList.add('dragover');
+        });
+      });
+      ['dragleave', 'drop'].forEach((ev) => {
+        dropArea.addEventListener(ev, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dropArea.classList.remove('dragover');
+        });
+      });
+      dropArea.addEventListener('drop', (e) => {
+        const f = e.dataTransfer.files && e.dataTransfer.files[0];
+        if (f) {
+          currentFile = f;
+          renderFileName(currentFile);
+        }
+      });
+    }
+
+    function renderFileName(file) {
+      const el = document.getElementById('fileName');
+      if (!file) {
+        el.textContent = 'No file chosen';
+      } else {
+        el.textContent = file.name + ' • ' + (file.size / (1024 * 1024)).toFixed(2) + ' MB';
+      }
+    }
+
+    form?.addEventListener('submit', (e) => {
+      if (!currentFile) {
+        e.preventDefault();
+        alert('Choose a file first');
+        return;
+      }
+      uploadBtn.disabled = true;
+      uploadBtn.textContent = 'Uploading...';
+      progressWrap.style.display = 'block';
+      setProgress(2);
+      statusText.textContent = 'Uploading file to server...';
+    });
+  })();
+</script>

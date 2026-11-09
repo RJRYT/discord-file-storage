@@ -1,27 +1,71 @@
 <!doctype html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>Discord File Store</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <link rel="stylesheet" href="/styles.css" />
-</head>
-<body>
-  <div class="container">
-    <header>
-      <h1><span class="brand-dot"></span> Discord File Storage</h1>
-      <nav><a href="/" title="Files">Files</a> <a href="/upload" title="Upload">Upload</a></nav>
-    </header>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Discord File Store</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="container">
+      <header class="site-header">
+        <div class="header-inner">
+          <h1 class="brand"><span class="brand-dot"></span> Discord File Storage</h1>
+          <button class="nav-toggle" aria-label="Toggle menu">&#9776;</button>
+          <nav class="main-nav">
+            <% var active = typeof active !== 'undefined' ? active : '' %>
+            <% var message = typeof message !== 'undefined' ? message : null %>
+            <% var error = typeof error !== 'undefined' ? error : null %>
+            <% var CHUNK_SIZE_MB = typeof CHUNK_SIZE_MB !== 'undefined' ? CHUNK_SIZE_MB : '' %>
+            <% if (user) { %>
+            <a href="/" title="Files" class="<%= (active === 'files') ? 'active' : '' %>"
+              >Files</a
+            >
+            <a
+              href="/files/upload"
+              title="Upload"
+              class="<%= (active === 'upload') ? 'active' : '' %>"
+              >Upload</a
+            >
+            <a
+              href="/profile"
+              title="Profile"
+              class="<%= (active === 'profile') ? 'active' : '' %>"
+              >Profile</a
+            >
+            <form action="/auth/logout" method="post" style="display: inline; margin: 0">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+              <button class="btn btn-outline" type="submit">Logout</button>
+            </form>
+            <% } else { %>
+            <a
+              href="/auth/login"
+              title="Login"
+              class="<%= (active === 'login') ? 'active' : '' %>"
+              >Login</a
+            >
+            <a href="/auth/register" title="Register" class="btn btn-primary">Register</a>
+            <% } %>
+          </nav>
+        </div>
+      </header>
 
-    <main class="scrollbar-thin">
-      <%- body %>
-    </main>
+      <% if (message) { %>
+      <div class="alert alert-success"><%= message %></div>
+      <% } %> <% if (error) { %>
+      <div class="alert alert-error"><%= error %></div>
+      <% } %>
 
-    <footer>
-      <small>Test project — not for production. Chunk size per file: <strong><%= CHUNK_SIZE_MB %> MB</strong></small>
-    </footer>
-  </div>
+      <main class="scrollbar-thin" role="main"><%- body %></main>
 
-  <script src="/main.js" defer></script>
-</body>
+      <footer>
+        <small
+          >Test project — not for production. Chunk size per file:
+          <strong><%= CHUNK_SIZE_MB %> MB</strong></small
+        >
+      </footer>
+    </div>
+
+    <script src="/main.js" defer></script>
+  </body>
 </html>

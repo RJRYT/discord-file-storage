@@ -1,32 +1,33 @@
 // utils/discord.js
-const axios = require("axios");
-const { response } = require("express");
-const FormData = require("form-data");
+const axios = require('axios');
+const { response } = require('express');
+const FormData = require('form-data');
 
-const DISCORD_API = "https://discord.com/api/v10";
+const DISCORD_API = 'https://discord.com/api/v10';
 const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
 const CHANNEL_ID = process.env.DISCORD_UPLOAD_CHANNEL_ID;
 
 if (!BOT_TOKEN || !CHANNEL_ID) {
-  console.warn(
-    "WARN: DISCORD_BOT_TOKEN or DISCORD_UPLOAD_CHANNEL_ID not set in .env"
-  );
+  console.warn('WARN: DISCORD_BOT_TOKEN or DISCORD_UPLOAD_CHANNEL_ID not set in .env');
 }
 
-async function postChunkToChannel(buffer, filename, index) {
+async function postChunkToChannel(buffer, filename, index, channelId = CHANNEL_ID) {
+  if (!channelId) {
+    throw new Error('No Discord channel ID provided');
+  }
   const form = new FormData();
-  form.append("file", buffer, { filename });
+  form.append('file', buffer, { filename });
   // small content helps traceability
-  form.append("content", JSON.stringify({ chunkIndex: index }));
+  form.append('content', JSON.stringify({ chunkIndex: index }));
 
   const headers = {
     ...form.getHeaders(),
     Authorization: `Bot ${BOT_TOKEN}`,
-    Accept: "application/json",
+    Accept: 'application/json',
   };
 
   // POST /channels/:channelId/messages
-  const url = `${DISCORD_API}/channels/${CHANNEL_ID}/messages`;
+  const url = `${DISCORD_API}/channels/${channelId}/messages`;
 
   let attempt = 0;
   while (true) {
@@ -45,10 +46,7 @@ async function postChunkToChannel(buffer, filename, index) {
 
       if (resp.status === 429) {
         // Discord rate-limited
-        const retryAfter =
-          resp.data?.retry_after ??
-          parseFloat(resp.headers["retry-after"]) ??
-          1;
+        const retryAfter = resp.data?.retry_after ?? parseFloat(resp.headers['retry-after']) ?? 1;
         const waitMs = Math.ceil(retryAfter * 1000) + attempt * 200;
         console.warn(`Discord 429. waiting ${waitMs}ms (attempt ${attempt})`);
         await new Promise((r) => setTimeout(r, waitMs));
@@ -56,19 +54,20 @@ async function postChunkToChannel(buffer, filename, index) {
       }
 
       // other non-OK
-      throw new Error(
-        `Discord upload failed: ${resp.status} ${JSON.stringify(resp.data)}`
-      );
+      throw new Error(`Discord upload failed: ${resp.status} ${JSON.stringify(resp.data)}`);
     } catch (err) {
       if (attempt >= 5) throw err;
       const backoff = 500 * attempt;
-      console.warn("upload error, retrying after", backoff, err.message);
+      console.warn('upload error, retrying after', backoff, err.message);
       await new Promise((r) => setTimeout(r, backoff));
     }
   }
 }
 
 async function deleteChunkFromChannel(channelId, messageId) {
+  if (!channelId) {
+    throw new Error('No Discord channel ID provided');
+  }
   const url = `${DISCORD_API}/channels/${channelId}/messages/${messageId}`;
 
   let attempt = 0;
@@ -78,7 +77,7 @@ async function deleteChunkFromChannel(channelId, messageId) {
       const resp = await axios.delete(url, {
         headers: {
           Authorization: `Bot ${BOT_TOKEN}`,
-          Accept: "application/json",
+          Accept: 'application/json',
         },
       });
 
@@ -93,26 +92,19 @@ async function deleteChunkFromChannel(channelId, messageId) {
       }
 
       if (resp.status === 429) {
-        const retryAfter =
-          resp.data?.retry_after ??
-          parseFloat(resp.headers["retry-after"]) ??
-          1;
+        const retryAfter = resp.data?.retry_after ?? parseFloat(resp.headers['retry-after']) ?? 1;
 
         const waitMs = Math.ceil(retryAfter * 1000) + attempt * 200;
-        console.warn(
-          `Discord delete 429. waiting ${waitMs}ms (attempt ${attempt})`
-        );
+        console.warn(`Discord delete 429. waiting ${waitMs}ms (attempt ${attempt})`);
         await new Promise((r) => setTimeout(r, waitMs));
         continue;
       }
 
-      throw new Error(
-        `Discord delete failed: ${resp.status} ${JSON.stringify(resp.data)}`
-      );
+      throw new Error(`Discord delete failed: ${resp.status} ${JSON.stringify(resp.data)}`);
     } catch (err) {
       if (attempt >= 5) throw err;
       const backoff = 500 * attempt;
-      console.warn("delete error, retrying after", backoff, err.message);
+      console.warn('delete error, retrying after', backoff, err.message);
       await new Promise((r) => setTimeout(r, backoff));
     }
   }
@@ -124,8 +116,7 @@ async function fetchMessage(channelId, messageId) {
     headers: { Authorization: `Bot ${BOT_TOKEN}` },
     validateStatus: (s) => s < 500,
   });
-  if (resp.status !== 200)
-    throw new Error(`Failed to fetch message ${messageId}: ${resp.status}`);
+  if (resp.status !== 200) throw new Error(`Failed to fetch message ${messageId}: ${resp.status}`);
   return resp.data;
 }
 

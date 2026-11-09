@@ -1,5 +1,5 @@
 // models/File.js
-const mongoose = require("mongoose");
+const mongoose = require('mongoose');
 
 const ChunkSchema = new mongoose.Schema({
   index: { type: Number, required: true },
@@ -9,6 +9,11 @@ const ChunkSchema = new mongoose.Schema({
   attachmentId: String,
   sha256: String,
   uploadedAt: Date,
+  status: {
+    type: String,
+    enum: ['pending', 'uploaded', 'failed'],
+    default: 'pending',
+  },
 });
 
 const FileSchema = new mongoose.Schema({
@@ -19,11 +24,22 @@ const FileSchema = new mongoose.Schema({
   chunkCount: Number,
   status: {
     type: String,
-    enum: ["uploading", "uploaded", "failed"],
-    default: "uploading",
+    enum: ['queued', 'uploading', 'completed', 'failed'],
+    default: 'queued',
   },
+  uploadStatus: {
+    type: String,
+    enum: ['queued', 'uploading', 'completed', 'failed'],
+    default: 'queued',
+  },
+  uploadedChunks: { type: Number, default: 0 },
   chunks: [ChunkSchema],
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  channelId: { type: String, required: true },
   createdAt: { type: Date, default: Date.now },
 });
 
-module.exports = mongoose.model("File", FileSchema);
+FileSchema.index({ userId: 1, createdAt: -1 });
+FileSchema.index({ channelId: 1 });
+
+module.exports = mongoose.model('File', FileSchema);

@@ -1,17 +1,18 @@
 <section class="panel">
-  <div
-    style="display: flex; justify-content: space-between; align-items: center"
-  >
+  <div class="panel-header">
     <div>
       <h2 style="margin: 0"><%= file.originalName %></h2>
       <div style="color: var(--muted); margin-top: 6px">
-        <%= (file.size/(1024*1024)).toFixed(2) %> MB • <%= file.chunkCount %>
-        chunks
+        <%= (file.size/(1024*1024)).toFixed(2) %> MB • <%= file.chunkCount %> chunks • Channel: <%=
+        file.channelId %> •
+        <span class="status-badge status-<%= (file.uploadStatus || file.status) %>"
+          ><%= file.uploadStatus || file.status %></span
+        >
       </div>
     </div>
-    <div style="display: flex; gap: 8px">
-      <% if (file.status === 'uploaded') { %>
-      <a class="btn" href="/files/<%= file._id %>/download">Download</a>
+    <div class="file-actions" style="display: flex; gap: 8px">
+      <% if ((file.uploadStatus || file.status) === 'completed') { %>
+      <a class="btn btn-primary" href="/files/<%= file._id %>/download">Download</a>
       <% } %>
 
       <form
@@ -20,28 +21,107 @@
         onsubmit="return confirm('Delete this file and all its chunks from Discord?');"
         style="display: inline"
       >
-        <button class="btn" style="background: #7f1d1d">Delete</button>
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+        <button class="btn btn-danger" type="submit">Delete</button>
       </form>
     </div>
   </div>
 
+  <% if ((file.uploadStatus || file.status) !== 'completed') { %>
+  <div class="progress-wrap" style="margin-top: 16px">
+    <div class="progress"><div class="progress-bar" style="width: 0%"></div></div>
+    <div class="info-row" style="margin-top: 8px">
+      <div id="statusText">Polling status...</div>
+    </div>
+  </div>
+  <div id="chunkStatus" style="margin-top: 12px">
+    <h3 style="margin: 0 0 8px 0; font-size: 15px">Chunks</h3>
+    <div id="chunkList"></div>
+  </div>
+  <% } %>
+
   <h3 style="margin-top: 18px">Chunks</h3>
-  <table class="table" aria-hidden="false">
-    <thead>
-      <tr>
-        <td style="color: var(--muted)">Index</td>
-        <td style="color: var(--muted)">Size (KB)</td>
-        <td style="color: var(--muted)">Message ID</td>
-      </tr>
-    </thead>
-    <tbody>
-      <% (file.chunks || []).sort((a,b) => a.index - b.index).forEach(ch => { %>
-      <tr>
-        <td><%= ch.index %></td>
-        <td><%= (ch.size/1024).toFixed(1) %> KB</td>
-        <td><%= ch.messageId || '' %></td>
-      </tr>
-      <% }) %>
-    </tbody>
-  </table>
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th style="color: var(--muted)">Index</th>
+          <th style="color: var(--muted)">Size (KB)</th>
+          <th style="color: var(--muted)">Message ID</th>
+          <th style="color: var(--muted)">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% (file.chunks || []).sort((a,b) => a.index - b.index).forEach(ch => { %>
+        <tr>
+          <td><%= ch.index %></td>
+          <td><%= (ch.size/1024).toFixed(1) %> KB</td>
+          <td><%= ch.messageId || '' %></td>
+          <td>
+            <span class="status-badge status-<%= ch.status || 'pending' %>"
+              ><%= ch.status || 'pending' %></span
+            >
+          </td>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
 </section>
+
+<script>
+  (function () {
+    const fileId = '<%= file._id %>';
+    const statusPollEl = document.getElementById('uploadStatusPoll');
+    const progressBar = document.querySelector('.progress-bar');
+    const statusText = document.getElementById('statusText');
+    const chunkList = document.getElementById('chunkList');
+    const chunkStatus = document.getElementById('chunkStatus');
+
+    if (!progressBar) return;
+
+    let pollTimer = null;
+    function setProgress(p) {
+      progressBar.style.width = p + '%';
+    }
+
+    function poll() {
+      fetch('/files/' + fileId + '/status', { headers: { Accept: 'application/json' } })
+        .then((r) => r.json())
+        .then((data) => {
+          if (!data.ok) return;
+          const pct = data.progressPercent || 0;
+          setProgress(pct);
+          if (statusText)
+            statusText.textContent =
+              'Uploaded ' + data.uploadedChunks + '/' + data.totalChunks + ' chunks';
+
+          if (chunkList && data.chunks) {
+            chunkList.innerHTML = data.chunks
+              .map(
+                (c) =>
+                  "<div style='font-size:12px;color:var(--muted);margin:4px 0;'><span style='color:var(--accent)'>Chunk " +
+                  c.index +
+                  '</span>: ' +
+                  c.status +
+                  '</div>'
+              )
+              .join('');
+            chunkStatus.style.display = 'block';
+          }
+
+          if (data.uploadStatus === 'completed' || data.uploadStatus === 'failed') {
+            clearInterval(pollTimer);
+            if (statusText)
+              statusText.textContent =
+                data.uploadStatus === 'completed' ? 'Upload completed!' : 'Upload failed.';
+            location.reload();
+          }
+        })
+        .catch(() => {});
+    }
+
+    poll();
+    pollTimer = setInterval(poll, 2000);
+  })();
+</script>
