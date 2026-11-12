@@ -45,12 +45,7 @@ router.get('/upload', requireAuth, (req, res) => {
 });
 
 // POST /files/upload - handle upload
-router.post(
-  '/upload',
-  requireAuth,
-  upload.single('file'),
-  csrfMiddleware,
-  async (req, res) => {
+router.post('/upload', requireAuth, upload.single('file'), csrfMiddleware, async (req, res) => {
   if (!req.file) {
     if (req.xhr || req.headers.accept?.includes('application/json')) {
       return res.status(400).json({ ok: false, error: 'No file uploaded' });
